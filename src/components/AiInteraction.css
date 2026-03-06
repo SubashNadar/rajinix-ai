@@ -1,0 +1,280 @@
+/* src/components/AiInteraction.css */
+.ai-interaction-container {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, sans-serif;
+  border: 1px solid #e5e7eb;
+  padding: 24px;
+  border-radius: 12px;
+  margin: 24px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.prompt-input {
+  padding: 12px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+  background-color: #f9fafb;
+  resize: none;
+}
+
+.prompt-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.submit-button {
+  padding: 12px 20px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.submit-button:disabled {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.submit-button:not(:disabled):hover {
+  background-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.loading-indicator {
+  text-align: center;
+  padding: 16px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.error-message {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.response-area {
+  margin-top: 24px;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 24px;
+}
+
+.response-prompt {
+  font-size: 1rem;
+  color: #4a5568;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.response-content {
+  background-color: #f9fafb;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: "Menlo", "Monaco", "Courier New", monospace;
+  min-height: 120px;
+  line-height: 1.5;
+  color: #1f2937;
+}
+
+.response-content.editable {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 1rem;
+  background-color: #ffffff;
+}
+
+.response-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.action-button {
+  padding: 10px 16px;
+  border: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.action-button:hover {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+/* Ensure pre doesn't overflow container */
+pre {
+  overflow-x: auto;
+  background-color: #f3f4f6;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 12px 0;
+}
+.ai-response {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+  color: #333;
+}
+
+.ai-response .text-segment {
+  margin-bottom: 1.5rem;
+}
+
+.ai-response p {
+  margin: 0.5rem 0;
+}
+
+.ai-response h1,
+.ai-response h2,
+.ai-response h3,
+.ai-response h4,
+.ai-response h5,
+.ai-response h6 {
+  color: #2c3e50;
+  margin: 1.5rem 0 1rem 0;
+}
+
+.ai-response h1 {
+  font-size: 1.8rem;
+}
+.ai-response h2 {
+  font-size: 1.6rem;
+}
+.ai-response h3 {
+  font-size: 1.4rem;
+}
+.ai-response h4 {
+  font-size: 1.2rem;
+}
+.ai-response h5 {
+  font-size: 1.1rem;
+}
+.ai-response h6 {
+  font-size: 1rem;
+}
+
+.ai-response .code-block {
+  margin: 1.5rem 0;
+  background: #f8f9fa;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ai-response pre {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: "Courier New", monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.ai-response code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.code-block {
+  position: relative;
+  margin: 1rem 0;
+  border-radius: 6px;
+  background: #282c34;
+  overflow: hidden;
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  color: #abb2bf;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.language-tag {
+  text-transform: uppercase;
+  font-family: monospace;
+  font-weight: bold;
+  color: #282c34;
+}
+
+.copy-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: black;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.copy-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.copy-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.copy-text {
+  font-size: 0.8rem;
+}
+
+/* For dark/light mode support */
+@media (prefers-color-scheme: light) {
+  .code-block {
+    background: #f5f5f5;
+    border: 1px solid #e1e1e1;
+  }
+  .code-header {
+    background: rgba(0, 0, 0, 0.05);
+    color: #333;
+  }
+  .copy-button {
+    color: #333;
+  }
+}
