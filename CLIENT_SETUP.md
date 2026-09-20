@@ -109,6 +109,22 @@ client IPs.
 
 ## Troubleshooting
 
+### `npm install` fails with a 404/405 or an unreachable host
+
+The repo pins the public registry in `.npmrc`, so this usually means npm is
+being pointed elsewhere by a CLI flag or an `npm_config_registry` environment
+variable, both of which override the project file. Check what is in effect:
+
+```bash
+npm config get registry   # expected: https://registry.npmjs.org/
+```
+
+If `package-lock.json` has picked up URLs for a private mirror, regenerate it:
+
+```bash
+rm package-lock.json && npm install
+```
+
 ### Server won't start
 - Ensure `.env` exists and `GEMINI_API_KEY` has no stray spaces or quotes
 - Check nothing else is on port 3001
