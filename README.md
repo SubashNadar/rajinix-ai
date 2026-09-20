@@ -1,82 +1,87 @@
-# Getting Started with Create React App
+# Rajinix-AI
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A streaming AI chat app built on Google's Gemini API — a React front end and an
+Express backend that keeps the API key server-side and stores conversations in
+SQLite.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- Streaming replies (Server-Sent Events) with a stop button
+- Conversations persisted per browser and restored on reload
+- Sidebar chat list: create, switch, delete
+- Full Markdown rendering — tables, lists, syntax-highlighted code with copy
+- Rate limiting on the endpoints that spend API quota
 
-### `npm start`
+## Quick start
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```bash
+npm install
+cp .env.example .env     # then add your GEMINI_API_KEY
+npm run dev              # React on :3000, API on :3001
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Get an API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+See [CLIENT_SETUP.md](CLIENT_SETUP.md) for the detailed guide and troubleshooting.
 
-### Change registry
+## Scripts
 
-cmd: npm config set registry https://registry.npmjs.org/
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Runs the React dev server and the API together |
+| `npm start` | React dev server only, on port 3000 |
+| `npm run server` | API server only, on port 3001 |
+| `npm test` | Jest test suite |
+| `npm run build` | Production build into `build/` |
 
-### install cors
+In production the API serves `build/` too, so `npm run build && npm run server`
+runs the whole app as one process.
 
-cmd: npm install express cors
+## Configuration
 
-### run server
+Everything is set through environment variables — see `.env.example`.
+`GEMINI_API_KEY` is the only required one.
 
-node basic-mock-server.js
+## Architecture
 
-### `npm test`
+```
+src/                      React app
+  api.js                  REST + SSE client
+  components/
+    AiInteraction.jsx     chat container: history, streaming, state
+    ChatSidebar.jsx       conversation list
+    MarkdownMessage.jsx   Markdown + code blocks
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+server/                   Express API
+  index.js                app wiring, rate limits, static build
+  db.js                   SQLite schema and queries
+  gemini.js               Gemini client and streaming
+  routes/chats.js         chat CRUD + SSE endpoint
+```
 
-### `npm run build`
+## API
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Every request needs an `x-client-id` header — a per-browser id that scopes
+conversations to whoever created them. It is not authentication.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/health` | Status, active model, whether a key is configured |
+| `GET` | `/api/chats` | List conversations |
+| `POST` | `/api/chats` | Create a conversation |
+| `GET` | `/api/chats/:id` | Conversation with its messages |
+| `DELETE` | `/api/chats/:id` | Delete a conversation |
+| `POST` | `/api/chats/:id/messages` | Send a prompt, stream the reply over SSE |
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+The streaming endpoint emits `start`, `delta`, `done` and `error` events:
 
-### `npm run eject`
+```
+event: delta
+data: {"text":"Hello"}
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Notes
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- Conversations are scoped by a localStorage id, not by a login. Add real
+  accounts before putting this anywhere public.
+- History sent to the model is capped at the last `HISTORY_LIMIT` messages.
+- SQLite lives at `DB_PATH` (default `./data/rajinix.db`) and is gitignored.

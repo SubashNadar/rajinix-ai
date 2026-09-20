@@ -1,170 +1,248 @@
-// src/components/AiInteraction.jsx
-import React, { useState } from "react";
-import { parseAIResponse } from "./Response";
+// src/components/AiInteraction.jsx — chat container: history, streaming, state.
+import React, { useCallback, useEffect, useRef, useState } from "react";
+
+import ChatSidebar from "./ChatSidebar";
+import MarkdownMessage from "./MarkdownMessage";
+import * as api from "../api";
 import "./AiInteraction.css";
+
 function AiInteraction() {
-  // --- State Variables ---
-  const [prompt, setPrompt] = useState(""); // User's input prompt
-  const [responses, setResponses] = useState([]); // List of AI responses
-  const [isLoading, setIsLoading] = useState(false); // API call loading state
-  const [error, setError] = useState(null); // Error message from API
-  const [isEditing, setIsEditing] = useState(false); // Is the response area editable?
-  const [editedResponse, setEditedResponse] = useState(""); // Temp state for editing
-  const [editingIndex, setEditingIndex] = useState(-1); // Index of response being edited
+  const [chats, setChats] = useState([]);
+  const [activeChatId, setActiveChatId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [prompt, setPrompt] = useState("");
+  const [streamingText, setStreamingText] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [error, setError] = useState(null);
 
-  // --- Handlers ---
+  const abortRef = useRef(null);
+  const answerRef = useRef("");
+  const scrollRef = useRef(null);
 
-  const handlePromptChange = (event) => {
-    setPrompt(event.target.value);
-  };
+  // Restore the most recent conversation on load.
+  useEffect(() => {
+    let cancelled = false;
 
-  const handleSubmitPrompt = async (event) => {
-    event.preventDefault(); // Prevent default form submission if wrapped in a form
-    if (!prompt.trim() || isLoading) return; // Prevent empty or duplicate submissions
+    api
+      .listChats()
+      .then((loaded) => {
+        if (cancelled) return;
+        setChats(loaded);
+        setActiveChatId((current) => current ?? loaded[0]?.id ?? null);
+      })
+      .catch((err) => !cancelled && setError(err.message));
 
-    setIsLoading(true);
-    setError(null); // Clear previous response
-    setIsEditing(false); // Exit edit mode on new submission
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load the selected conversation's messages.
+  useEffect(() => {
+    if (!activeChatId) {
+      setMessages([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    api
+      .getChat(activeChatId)
+      .then((data) => !cancelled && setMessages(data.messages))
+      .catch((err) => !cancelled && setError(err.message));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChatId]);
+
+  // Keep the newest text in view while it streams in.
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [messages, streamingText]);
+
+  const refreshChats = useCallback(
+    () => api.listChats().then(setChats).catch(() => {}),
+    []
+  );
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    const text = prompt.trim();
+    if (!text || isStreaming) return;
+
+    setError(null);
+    setPrompt("");
+    answerRef.current = "";
+    setStreamingText("");
 
     try {
-      // Replace with your actual API endpoint and configuration
-      const apiEndpoint = "/api/generate";
-      console.log("Sending prompt:", prompt);
-      console.log("API Endpoint:", apiEndpoint);
-      const res = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: prompt,
-        }),
-      });
-
-      if (!res.ok) {
-        // Try to get error details from response body, otherwise use status text
-        let errorMsg = `Error: ${res.status} ${res.statusText}`;
-        try {
-          const errorData = await res.json();
-          errorMsg = errorData.message || errorData.error || errorMsg;
-        } catch (parseError) {
-          // Ignore if response body isn't valid JSON
-        }
-        throw new Error(errorMsg);
+      let chatId = activeChatId;
+      if (!chatId) {
+        const chat = await api.createChat();
+        chatId = chat.id;
+        setChats((current) => [chat, ...current]);
+        setActiveChatId(chatId);
       }
 
-      const data = await res.json();
-
-      if (!data.response) {
-        throw new Error("Received empty response from AI.");
-      }
-
-      // Add new response to the list
-      setResponses([
-        ...responses,
-        {
-          prompt: prompt,
-          response: data.response,
-          timestamp: new Date().toISOString(),
-        },
+      setMessages((current) => [
+        ...current,
+        { id: `local-user-${Date.now()}`, role: "user", content: text },
       ]);
 
-      // Clear prompt after successful submission
-      setPrompt("");
-    } catch (err) {
-      console.error("API Call Failed:", err);
-      // Check if err is an Error object before accessing message
-      const message = err instanceof Error ? err.message : String(err);
-      setError(`Failed to get response: ${message}`);
-    } finally {
-      setIsLoading(false); // End loading state regardless of outcome
-    }
-  };
+      setIsStreaming(true);
+      abortRef.current = new AbortController();
 
-  const handleCopy = (text) => {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Optional: Show temporary success message/feedback
-        console.log("Response copied to clipboard!");
-      })
-      .catch((err) => {
-        console.error("Failed to copy text: ", err);
-        // Optional: Show error feedback to the user
-        setError("Failed to copy text to clipboard.");
+      await api.streamMessage(chatId, text, {
+        signal: abortRef.current.signal,
+        onDelta: (delta) => {
+          answerRef.current += delta;
+          setStreamingText(answerRef.current);
+        },
       });
-  };
 
-  const handleEditToggle = (index) => {
-    if (!isEditing) {
-      // Entering edit mode
-      setEditedResponse(responses[index].response);
-      setEditingIndex(index);
-    } else {
-      // Saving edit mode (update response in the list)
-      const updatedResponses = [...responses];
-      updatedResponses[editingIndex].response = editedResponse;
-      setResponses(updatedResponses);
-      setEditingIndex(-1);
+      commitAnswer();
+      refreshChats();
+    } catch (err) {
+      if (err.name === "AbortError") {
+        // Stopped on purpose — keep whatever had already arrived.
+        commitAnswer();
+        refreshChats();
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setIsStreaming(false);
+      setStreamingText("");
+      abortRef.current = null;
     }
-    setIsEditing(!isEditing);
   };
 
-  const handleEditedResponseChange = (event) => {
-    setEditedResponse(event.target.value);
+  function commitAnswer() {
+    const answer = answerRef.current;
+    if (!answer) return;
+
+    setMessages((current) => [
+      ...current,
+      { id: `local-model-${Date.now()}`, role: "model", content: answer },
+    ]);
+    answerRef.current = "";
+  }
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSubmit(event);
+    }
   };
 
-  // --- Render Logic ---
+  const handleNewChat = () => {
+    abortRef.current?.abort();
+    setActiveChatId(null);
+    setMessages([]);
+    setError(null);
+  };
+
+  const handleSelectChat = (chatId) => {
+    if (chatId === activeChatId) return;
+    abortRef.current?.abort();
+    setActiveChatId(chatId);
+    setError(null);
+  };
+
+  const handleDeleteChat = async (chatId) => {
+    try {
+      await api.deleteChat(chatId);
+      setChats((current) => current.filter((chat) => chat.id !== chatId));
+      if (chatId === activeChatId) handleNewChat();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const showEmptyState = messages.length === 0 && !isStreaming;
+
   return (
-    <div className="ai-interaction-container">
-      <h2>Hello Rajini-AI</h2>
-      <link rel="icon" href="%PUBLIC_URL%/favicon.png" />
-      {/* Response Area */}
-      {responses.length > 0 && (
-        <div className="responses-container">
-          {responses.length > 0 ? (
-            responses.map((item, index) => (
-              // Updated response-item structure with card styling
-              <div key={index} className="response-item card">
-                <div className="response-prompt">
-                  <strong>Prompt:</strong> {item.prompt}
-                </div>
+    <div className="app-shell">
+      <ChatSidebar
+        chats={chats}
+        activeChatId={activeChatId}
+        onSelect={handleSelectChat}
+        onNewChat={handleNewChat}
+        onDelete={handleDeleteChat}
+      />
 
-                <div className="response-content">
-                  {parseAIResponse(item.response)}
-                </div>
+      <main className="chat-panel">
+        <div className="message-scroll" ref={scrollRef}>
+          {showEmptyState && (
+            <div className="empty-state">
+              <h2>Hello, I'm Rajinix-AI</h2>
+              <p>Ask me anything to start a conversation.</p>
+            </div>
+          )}
+
+          {messages.map((message) => (
+            <article key={message.id} className={`message ${message.role}`}>
+              <div className="message-role">
+                {message.role === "user" ? "You" : "Rajinix-AI"}
               </div>
-            ))
-          ) : (
-            <p>No responses yet. Send a prompt to get started.</p>
+              <div className="message-content">
+                {message.role === "user" ? (
+                  <p className="user-text">{message.content}</p>
+                ) : (
+                  <MarkdownMessage content={message.content} />
+                )}
+              </div>
+            </article>
+          ))}
+
+          {isStreaming && (
+            <article className="message model">
+              <div className="message-role">Rajinix-AI</div>
+              <div className="message-content">
+                {streamingText ? (
+                  <MarkdownMessage content={streamingText} />
+                ) : (
+                  <span className="thinking">Thinking...</span>
+                )}
+                <span className="cursor" aria-hidden="true" />
+              </div>
+            </article>
           )}
         </div>
-      )}
 
-      {/* Error Display */}
-      {error && <div className="error-message">Error: {error}</div>}
+        {error && (
+          <div className="error-message" role="alert">
+            {error}
+          </div>
+        )}
 
-      {/* Loading Indicator */}
-      {isLoading && <div className="loading-indicator">Processing...</div>}
-
-      {/* Prompt Input Area */}
-      <form onSubmit={handleSubmitPrompt} className="prompt-form">
-        <textarea
-          className="prompt-input"
-          value={prompt}
-          onChange={handlePromptChange}
-          placeholder="Enter your prompt here..."
-          rows={4}
-          disabled={isLoading}
-        />
-        <button
-          type="submit"
-          disabled={isLoading || !prompt.trim()}
-          className="submit-button"
-        >
-          {isLoading ? "Generating..." : "Send Prompt"}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} className="prompt-form">
+          <textarea
+            className="prompt-input"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Enter your prompt... (Enter to send, Shift+Enter for a new line)"
+            rows={3}
+          />
+          {isStreaming ? (
+            <button
+              type="button"
+              className="submit-button stop"
+              onClick={() => abortRef.current?.abort()}
+            >
+              Stop
+            </button>
+          ) : (
+            <button type="submit" className="submit-button" disabled={!prompt.trim()}>
+              Send
+            </button>
+          )}
+        </form>
+      </main>
     </div>
   );
 }

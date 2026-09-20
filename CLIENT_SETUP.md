@@ -1,172 +1,160 @@
-# Rajinix-AI Client Setup Guide
+# Rajinix-AI Setup Guide
 
-A React-based AI chatbot application powered by Google's Gemini AI API.
+A React chat app powered by Google's Gemini API, with an Express backend that
+streams replies and stores conversations in SQLite.
 
 ## Prerequisites
 
-- Node.js (v14 or higher)
-- npm (v6 or higher)
-- Google Gemini API Key
+- Node.js v18 or higher (v20+ recommended)
+- npm v9 or higher
+- A Google Gemini API key
 
 ## Quick Start
 
-### 1. Clone the Repository
+### 1. Clone and install
 
 ```bash
 git clone <repository-url>
 cd rajinix-ai
-```
-
-### 2. Install Dependencies
-
-```bash
 npm install
 ```
 
-### 3. Configure Environment Variables
+### 2. Configure environment variables
 
-Create a `.env` file in the root directory:
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` and set your key:
 
 ```bash
 GEMINI_API_KEY=your_gemini_api_key_here
-PORT=3001
 ```
 
-**Get your Gemini API Key:**
-- Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+**Get your Gemini API key:**
+- Visit [Google AI Studio](https://aistudio.google.com/app/apikey)
 - Sign in with your Google account
-- Create a new API key
-- Copy and paste it into your `.env` file
+- Create a new API key and paste it into `.env`
 
-### 4. Start the Backend Server
-
-In one terminal:
+### 3. Run both processes
 
 ```bash
-node basic-mock-server.js
+npm run dev
 ```
 
-The server will start on `http://localhost:3001`
+That starts the React app on [http://localhost:3000](http://localhost:3000) and
+the API on [http://localhost:3001](http://localhost:3001). To run them
+separately, use `npm start` in one terminal and `npm run server` in another.
 
-### 5. Start the React App
-
-In another terminal:
+Check the API is healthy:
 
 ```bash
-npm start
+curl http://localhost:3001/api/health
+# {"status":"ok","model":"gemini-2.5-flash","apiKeyConfigured":true}
 ```
-
-The app will open at `http://localhost:3000`
 
 ## Project Structure
 
 ```
 rajinix-ai/
 ├── public/
-│   ├── favicon.png          # App icon
-│   └── index.html           # HTML template
+│   ├── favicon.png
+│   └── index.html
 ├── src/
+│   ├── api.js                     # REST + SSE client
 │   ├── components/
-│   │   ├── AiInteraction.jsx    # Main chat component
-│   │   ├── AiInteraction.css    # Component styles
-│   │   └── Response.jsx         # Response parser
-│   ├── App.js               # Root component
-│   └── index.js             # Entry point
-├── basic-mock-server.js     # Express backend server
-├── .env                     # Environment variables
-└── package.json             # Dependencies
+│   │   ├── AiInteraction.jsx      # Chat container
+│   │   ├── AiInteraction.css      # Styles
+│   │   ├── ChatSidebar.jsx        # Conversation list
+│   │   └── MarkdownMessage.jsx    # Markdown + code rendering
+│   ├── App.js
+│   └── index.js
+├── server/
+│   ├── index.js                   # Express app, rate limits, static build
+│   ├── db.js                      # SQLite schema and queries
+│   ├── gemini.js                  # Gemini client and streaming
+│   └── routes/chats.js            # Chat CRUD + SSE endpoint
+├── data/                          # SQLite database (gitignored)
+├── .env                           # Your environment variables (gitignored)
+└── package.json
 ```
 
-## Features
+## Environment Variables
 
-- 💬 Real-time AI chat interface
-- 🎨 Markdown and code block rendering
-- 📋 Copy code functionality
-- 🔄 Conversation history with auto-summarization
-- 🎯 Clean, modern UI
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | *(required)* | Your Google AI Studio key |
+| `PORT` | `3001` | API server port |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Model to call |
+| `DB_PATH` | `./data/rajinix.db` | SQLite file location |
+| `CORS_ORIGIN` | `http://localhost:3000` | Allowed origins, comma-separated |
+| `HISTORY_LIMIT` | `20` | Past messages replayed to the model per turn |
+| `MAX_PROMPT_LENGTH` | `8000` | Longest accepted prompt, in characters |
+| `GENERATE_RATE_LIMIT` | `12` | Generation requests per minute per IP |
+| `TRUST_PROXY` | *(unset)* | Proxy hops to trust; set only behind a reverse proxy |
 
-## Available Scripts
+## Deploying
 
-### `npm start`
-Runs the React app in development mode at [http://localhost:3000](http://localhost:3000)
+Build the front end and let the API serve it, so the whole app is one process:
 
-### `node basic-mock-server.js`
-Starts the Express backend server on port 3001
+```bash
+npm run build
+npm run server
+```
 
-### `npm test`
-Launches the test runner
-
-### `npm run build`
-Builds the app for production to the `build` folder
-
-## Configuration
-
-### Backend Server (basic-mock-server.js)
-
-- **Port:** Default 3001 (configurable via PORT env variable)
-- **Model:** gemini-1.5-flash-latest
-- **CORS:** Enabled for frontend requests
-- **Features:**
-  - Conversation history tracking
-  - Automatic conversation summarization
-  - Error handling and logging
-
-### Frontend (React App)
-
-- **Proxy:** Configured to proxy API requests to `http://localhost:3001`
-- **API Endpoint:** `/api/generate`
-- **Features:**
-  - Response parsing with markdown support
-  - Code syntax highlighting
-  - Copy-to-clipboard functionality
+On a platform like Render or Fly.io: set `GEMINI_API_KEY`, point `DB_PATH` at a
+persistent volume (otherwise conversations vanish on redeploy), set
+`CORS_ORIGIN` to your domain, and set `TRUST_PROXY=1` so rate limiting sees real
+client IPs.
 
 ## Troubleshooting
 
 ### Server won't start
-- Ensure `.env` file exists with valid `GEMINI_API_KEY`
-- Check if port 3001 is available
-- Verify all dependencies are installed: `npm install`
+- Ensure `.env` exists and `GEMINI_API_KEY` has no stray spaces or quotes
+- Check nothing else is on port 3001
+- Reinstall dependencies: `npm install`
 
-### API Key errors
-- Verify your Gemini API key is correct
-- Check if you've exceeded free tier limits
-- Ensure no extra spaces in `.env` file
+### "GEMINI_API_KEY is not set"
+The server starts without a key but fails on generation. Add the key to `.env`
+and restart. `GET /api/health` reports whether one was loaded.
+
+### API key or quota errors
+- Verify the key in Google AI Studio
+- Check whether you have hit free tier limits
+- If the model name is rejected, set a current one via `GEMINI_MODEL`
+
+### Replies do not stream
+Some proxies buffer responses. The server sends `X-Accel-Buffering: no`; if you
+put nginx in front of it, also set `proxy_buffering off` for `/api/`.
+
+### "Too many requests"
+The generation endpoint allows `GENERATE_RATE_LIMIT` requests per minute per IP.
+Raise it in `.env` for local work.
 
 ### CORS errors
-- Ensure backend server is running on port 3001
-- Check proxy configuration in `package.json`
+Confirm the API is running and `CORS_ORIGIN` matches the front-end origin. In
+development the CRA proxy in `package.json` handles this.
 
-### Port conflicts
-- Change PORT in `.env` file
-- Update proxy in `package.json` to match
+### Conversations disappeared
+They live in the SQLite file at `DB_PATH`, and the sidebar only shows chats
+created by the current browser — the id is kept in localStorage, so clearing
+site data starts a fresh list.
 
-## Dependencies
+## Testing
 
-### Frontend
-- react ^19.1.0
-- react-dom ^19.1.0
-- react-scripts 5.0.1
+```bash
+npm test
+```
 
-### Backend
-- express ^5.1.0
-- cors ^2.8.5
-- @google/generative-ai ^0.24.1
-- dotenv ^16.5.0
+Covers the SSE client (frame assembly, split frames, error events) and an app
+smoke test.
 
 ## Security Notes
 
-⚠️ **Important:**
-- Never commit `.env` file to version control
-- Keep your API key secure
-- Add `.env` to `.gitignore`
-- Use environment variables for sensitive data
-
-## Support
-
-For issues or questions:
-1. Check the troubleshooting section
-2. Review server logs in the terminal
-3. Check browser console for frontend errors
+- Never commit `.env`; the API key stays server-side
+- The `x-client-id` header scopes chats to a browser — it is not authentication,
+  so add real accounts before exposing this publicly
+- Keep the rate limits on if the app is reachable from the internet
 
 ## License
 
