@@ -48,6 +48,12 @@ async function* streamReply(messages) {
     contents: toContents(messages),
   });
 
+  // The SDK tees the upstream into result.response and drains it eagerly. We
+  // only read result.stream, so if the upstream errors mid-flight that second
+  // promise rejects with nobody awaiting it — which takes the process down.
+  // Our own error handling comes from the loop below.
+  result.response.catch(() => {});
+
   for await (const chunk of result.stream) {
     const text = chunk.text();
     if (text) yield text;
